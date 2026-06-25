@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budget Snapshot</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:#111213; --surface:#1C1D1F; --border:#2A2B2D; --text:#F0F0F0; --muted:#8A8B8D; --dim:#2E2F31;
+    --green:#1D9E75; --green-bg:#0E2920; --green-tx:#4DD4A0;
+    --blue:#2B7FD4;  --blue-bg:#0D1E35;  --blue-tx:#6BB5F5;
+    --amber:#C47C1A; --amber-bg:#2A1E0A; --amber-tx:#F0AA4A;
+    --purple:#6B5FD4;--purple-bg:#1A1730;--purple-tx:#A89AF5;
+    --red:#D44040;   --red-bg:#2A1010;   --red-tx:#F08080;
+    --radius:14px; --radius-sm:8px;
+  }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; min-height:100vh; padding:1.25rem 1rem 3rem; max-width:440px; margin:0 auto; }
+  .hdr { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:1.5rem; }
+  .hdr-title { font-size:1.1rem; font-weight:600; letter-spacing:-.01em; }
+  .hdr-date  { font-size:.75rem; color:var(--muted); }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1rem 1.125rem; margin-bottom:.875rem; }
+  .card-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:.875rem; }
+  .card-tl  { display:flex; align-items:center; gap:.625rem; }
+  .card-icon { width:38px; height:38px; border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; font-size:1.1rem; flex-shrink:0; }
+  .card-name { font-size:.9375rem; font-weight:600; line-height:1.2; }
+  .card-sub  { font-size:.75rem; color:var(--muted); margin-top:2px; }
+  .tag { font-size:.6875rem; font-weight:600; padding:3px 9px; border-radius:99px; white-space:nowrap; margin-top:2px; }
+  .amounts { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:.5rem; }
+  .amt-big { font-size:1.375rem; font-weight:700; letter-spacing:-.02em; }
+  .amt-of  { font-size:.8125rem; color:var(--muted); }
+  .track { background:var(--dim); border-radius:99px; height:7px; overflow:hidden; margin-bottom:.375rem; }
+  .fill  { height:100%; border-radius:99px; }
+  .progress-foot { display:flex; justify-content:space-between; }
+  .p-pct  { font-size:.75rem; font-weight:600; }
+  .p-left { font-size:.75rem; color:var(--muted); }
+  .divider { border:none; border-top:1px solid var(--border); margin:.75rem 0; }
+  .card-footer { display:flex; flex-direction:column; gap:.3125rem; }
+  .foot-row { display:flex; justify-content:space-between; align-items:center; }
+  .foot-lbl { font-size:.6875rem; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .foot-val { font-size:.8125rem; font-weight:600; }
+  .sd-amts { display:flex; justify-content:space-between; margin-bottom:.5rem; }
+  .sd-micro { font-size:.6875rem; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; }
+  .action-bar { display:flex; gap:.625rem; margin-top:1.25rem; }
+  .btn { flex:1; padding:.6875rem .5rem; font-size:.875rem; font-weight:500; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .btn:active { opacity:.7; }
+  .btn-primary { background:var(--text); color:var(--bg); border-color:transparent; font-weight:600; }
+  .btn-copy { color:var(--green-tx); border-color:var(--green); }
+  .banner { font-size:.75rem; padding:.5rem .875rem; border-radius:var(--radius-sm); margin-bottom:.875rem; text-align:center; display:none; }
+  .banner.show { display:block; }
+  .banner-ok  { background:var(--green-bg); color:var(--green-tx); border:1px solid var(--green); }
+  .banner-err { background:var(--red-bg);   color:var(--red-tx);   border:1px solid var(--red); }
+  #edit-panel { display:none; }
+  .esec { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1rem 1.125rem; margin-bottom:.875rem; }
+  .esec-title { font-size:.75rem; color:var(--muted); margin-bottom:.75rem; text-transform:uppercase; letter-spacing:.05em; }
+  .egroup { border-bottom:1px solid var(--border); padding-bottom:.75rem; margin-bottom:.75rem; }
+  .egroup:last-child { border-bottom:none; padding-bottom:0; margin-bottom:0; }
+  .egroup-name { font-size:.8125rem; font-weight:600; margin-bottom:.5rem; }
+  .erow { display:flex; justify-content:space-between; align-items:center; padding:.3125rem 0; gap:.5rem; }
+  .elabel { font-size:.875rem; color:var(--muted); flex:1; }
+  input[type=number], select { background:var(--dim); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:.875rem; padding:.375rem .5rem; }
+  input[type=number] { width:96px; text-align:right; }
+  select { min-width:130px; }
+  input[type=number]:focus, select:focus { outline:2px solid var(--green); outline-offset:1px; }
+  .alloc-grid { display:grid; grid-template-columns:1fr 52px 14px 4px 68px; gap:0 6px; align-items:center; }
+  .alloc-hdr span { font-size:.6875rem; color:var(--muted); padding-bottom:6px; }
+  .alloc-hdr .ar { text-align:right; }
+  .alloc-row { padding:4px 0; }
+  .alloc-name { font-size:.8125rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .alloc-pct-in { width:100%!important; font-size:.8125rem!important; padding:3px 5px!important; text-align:right; }
+  .alloc-sign { font-size:.8125rem; color:var(--muted); }
+  .alloc-amt { font-size:.8125rem; font-weight:600; text-align:right; }
+  .alloc-sep { border:none; border-top:1px solid var(--border); margin:.5rem 0; }
+  .alloc-total { display:flex; justify-content:space-between; }
+  .alloc-total-lbl { font-size:.75rem; color:var(--muted); }
+  .alloc-total-val { font-size:.8125rem; font-weight:600; }
+  .copy-fallback { background:var(--dim); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-family:monospace; font-size:.75rem; padding:.75rem; width:100%; resize:none; margin-top:.625rem; }
+  .copy-note { font-size:.6875rem; color:var(--muted); margin-top:.375rem; text-align:center; }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <span class="hdr-title">Budget snapshot</span>
+  <span class="hdr-date" id="hdr-date"></span>
+</div>
+
+<div id="banner" class="banner"></div>
+<div id="goals-display"></div>
+<div id="edit-panel"></div>
+
+<div class="action-bar" id="action-bar">
+  <button class="btn" onclick="toggleEdit()">Edit values</button>
+  <button class="btn btn-copy" onclick="copySnapshot()">📋 Copy snapshot</button>
+</div>
+<div id="copy-area"></div>
+
+<script>
+const STATUSES=[
+  {v:'on_track',l:'On track',  emoji:'✅',tagBg:'#0E2920',tagTx:'#4DD4A0'},
+  {v:'ahead',   l:'Ahead',     emoji:'🚀',tagBg:'#0E2920',tagTx:'#4DD4A0'},
+  {v:'ok',      l:'Doing okay',emoji:'👍',tagBg:'#2A1E0A',tagTx:'#F0AA4A'},
+  {v:'behind',  l:'Needs attention',emoji:'⚠️',tagBg:'#2A1010',tagTx:'#F08080'},
+  {v:'paused',  l:'Paused',    emoji:'⏸️',tagBg:'#2E2F31',tagTx:'#8A8B8D'},
+];
+function smeta(v){return STATUSES.find(s=>s.v===v)||STATUSES[0];}
+const ICONS={emergency:'🛡️',vacation:'✈️',goalget:'🏆',retire:'🏦'};
+
+const DEFAULTS={
+  TM:1446,
+  S:[
+    {id:'emergency',label:'Emergency fund',color:'#1D9E75',bg:'#0E2920',tx:'#4DD4A0',mode:'save',      target:116208,current:123701,pct:0, status:'on_track'},
+    {id:'vacation', label:'Vacation fund', color:'#2B7FD4',bg:'#0D1E35',tx:'#6BB5F5',mode:'spenddown', budget:20615, spent:6983,  mt:6,  pct:0, status:'ok'},
+    {id:'goalget',  label:'Goal getter',   color:'#C47C1A',bg:'#2A1E0A',tx:'#F0AA4A',mode:'save',      target:5000,  current:632, pct:65,status:'behind'},
+    {id:'retire',   label:'Retirement',    color:'#6B5FD4',bg:'#1A1730',tx:'#A89AF5',mode:'save',      target:14000, current:2526,pct:35,status:'on_track'},
+  ]
+};
+
+const KEY='budget-snapshot-v1';
+let TM=DEFAULTS.TM;
+let S=JSON.parse(JSON.stringify(DEFAULTS.S));
+
+// ── storage: plain localStorage, works in any browser ──
+function saveState(){
+  try{
+    localStorage.setItem(KEY,JSON.stringify({TM,S}));
+    showBanner('✓ Saved','ok',false);
+  }catch(e){
+    showBanner('⚠ Could not save: '+e.message,'err',false);
+  }
+}
+
+function loadState(){
+  try{
+    const raw=localStorage.getItem(KEY);
+    if(raw){
+      const saved=JSON.parse(raw);
+      if(typeof saved.TM==='number')TM=saved.TM;
+      if(Array.isArray(saved.S))saved.S.forEach(sg=>{
+        const d=S.find(x=>x.id===sg.id);if(d)Object.assign(d,sg);
+      });
+    }
+  }catch(e){}
+  renderGoals();
+}
+
+// ── banner ──
+let bannerTimer;
+function showBanner(msg,type,persist){
+  const el=document.getElementById('banner');
+  clearTimeout(bannerTimer);
+  el.textContent=msg; el.className='banner show banner-'+type;
+  if(!persist)bannerTimer=setTimeout(()=>{el.className='banner';},3000);
+}
+function hideBanner(){document.getElementById('banner').className='banner';}
+
+// ── helpers ──
+function fmt(n){return '$'+Math.round(n).toLocaleString();}
+function gm(g){return TM*g.pct/100;}
+function addMonths(n){const d=new Date();d.setMonth(d.getMonth()+Math.ceil(n));return d;}
+function fmtDate(d){return d.toLocaleDateString('en-US',{month:'short',year:'numeric'});}
+function estDate(g){
+  if(g.mode==='save'){
+    const m=gm(g);if(m<=0)return null;
+    const rem=g.target-g.current;if(rem<=0)return null;
+    return fmtDate(addMonths(rem/m));
+  }else{
+    if(!g.mt||g.spent<=0)return null;
+    const br=g.spent/g.mt,rem=g.budget-g.spent;
+    if(rem<=0)return null;
+    return fmtDate(addMonths(rem/br));
+  }
+}
+
+// ── cards ──
+function cardHTML(g){
+  const sm=smeta(g.status),ed=estDate(g),icon=ICONS[g.id]||'•';
+  if(g.mode==='spenddown'){
+    const rem=Math.max(0,g.budget-g.spent);
+    const sp=Math.min(100,Math.round((g.spent/g.budget)*100));
+    const barC=sp>80?'#D44040':sp>55?'#C47C1A':g.color;
+    const valC=sp>80?'#F08080':sp>55?'#F0AA4A':g.tx;
+    const br=g.mt>0&&g.spent>0?g.spent/g.mt:0;
+    return `<div class="card">
+      <div class="card-top">
+        <div class="card-tl">
+          <div class="card-icon" style="background:${g.bg}">${icon}</div>
+          <div><div class="card-name">${g.label}</div><div class="card-sub">Budget: ${fmt(g.budget)}</div></div>
+        </div>
+        <div class="tag" style="background:${sm.tagBg};color:${sm.tagTx}">${sm.l}</div>
+      </div>
+      <div class="sd-amts">
+        <div><div class="sd-micro">Remaining</div><div class="amt-big">${fmt(rem)}</div></div>
+        <div style="text-align:right"><div class="sd-micro">Spent</div><div class="amt-big" style="color:${valC}">${fmt(g.spent)}</div></div>
+      </div>
+      <div class="track"><div class="fill" style="width:${sp}%;background:${barC}"></div></div>
+      <div class="progress-foot"><span class="p-pct" style="color:${valC}">${sp}% spent</span><span class="p-left">${fmt(rem)} left</span></div>
+      <hr class="divider">
+      <div class="card-footer">
+        <div class="foot-row"><span class="foot-lbl">Burn rate</span><span class="foot-val" style="color:${valC}">${br>0?fmt(br)+'/mo':'—'}</span></div>
+        <div class="foot-row"><span class="foot-lbl">Est. runs out</span><span class="foot-val" style="color:#8A8B8D">${ed||'—'}</span></div>
+      </div>
+    </div>`;
+  }
+  const pct=Math.min(100,Math.round((g.current/g.target)*100));
+  const left=Math.max(0,g.target-g.current),m=gm(g);
+  return `<div class="card">
+    <div class="card-top">
+      <div class="card-tl">
+        <div class="card-icon" style="background:${g.bg}">${icon}</div>
+        <div><div class="card-name">${g.label}</div><div class="card-sub">Goal: ${fmt(g.target)}</div></div>
+      </div>
+      <div class="tag" style="background:${sm.tagBg};color:${sm.tagTx}">${sm.l}</div>
+    </div>
+    <div class="amounts"><span class="amt-big">${fmt(g.current)}</span><span class="amt-of">of ${fmt(g.target)}</span></div>
+    <div class="track"><div class="fill" style="width:${pct}%;background:${g.color}"></div></div>
+    <div class="progress-foot"><span class="p-pct" style="color:${g.tx}">${pct}% there</span><span class="p-left">${left>0?fmt(left)+' to go':'Goal reached! 🎉'}</span></div>
+    <hr class="divider">
+    <div class="card-footer">
+      <div class="foot-row"><span class="foot-lbl">This month</span><span class="foot-val" style="color:${g.tx}">${m>0?'+'+fmt(m):'—'}</span></div>
+      <div class="foot-row"><span class="foot-lbl">Est. complete</span><span class="foot-val" style="color:#8A8B8D">${ed||'—'}</span></div>
+    </div>
+  </div>`;
+}
+
+function renderGoals(){document.getElementById('goals-display').innerHTML=S.map(cardHTML).join('');}
+
+// ── copy to text ──
+function generateText(){
+  const date=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const lines=['💰 Budget Snapshot — '+date,'─────────────────────'];
+  S.forEach(g=>{
+    const sm=smeta(g.status),ed=estDate(g),icon=ICONS[g.id]||'•';
+    lines.push('');
+    if(g.mode==='spenddown'){
+      const rem=Math.max(0,g.budget-g.spent);
+      const sp=Math.min(100,Math.round((g.spent/g.budget)*100));
+      const br=g.mt>0&&g.spent>0?Math.round(g.spent/g.mt):0;
+      lines.push(`${icon} ${g.label}  ${sm.emoji} ${sm.l}`);
+      lines.push(`Budget: ${fmt(g.budget)}`);
+      lines.push(`Remaining: ${fmt(rem)}  ·  Spent: ${fmt(g.spent)} (${sp}%)`);
+      if(br>0)lines.push(`Burn rate: ${fmt(br)}/mo`);
+      if(ed)lines.push(`Est. runs out: ${ed}`);
+    }else{
+      const pct=Math.min(100,Math.round((g.current/g.target)*100));
+      const left=Math.max(0,g.target-g.current),m=gm(g);
+      lines.push(`${icon} ${g.label}  ${sm.emoji} ${sm.l}`);
+      lines.push(`${fmt(g.current)} of ${fmt(g.target)} (${pct}%)`);
+      if(left>0)lines.push(`${fmt(left)} to go`);else lines.push('Goal reached! 🎉');
+      if(m>0)lines.push(`This month: +${fmt(m)}`);
+      if(ed)lines.push(`Est. complete: ${ed}`);
+    }
+  });
+  lines.push('','─────────────────────');
+  return lines.join('\n');
+}
+
+async function copySnapshot(){
+  const text=generateText();
+  const area=document.getElementById('copy-area');
+  try{
+    await navigator.clipboard.writeText(text);
+    area.innerHTML='';
+    showBanner('📋 Copied — paste into any message app','ok',false);
+  }catch(e){
+    area.innerHTML=`<textarea class="copy-fallback" rows="10" readonly>${text}</textarea><p class="copy-note">Select all and copy manually</p>`;
+  }
+}
+
+// ── edit panel ──
+let editOpen=false;
+function updCalcs(){
+  const tot=parseFloat(document.getElementById('tm-input')?.value)||0;
+  let sum=0;
+  S.forEach(g=>{
+    const p=parseFloat(document.getElementById('pct-'+g.id)?.value)||0;sum+=p;
+    const ai=document.getElementById('amt-'+g.id);
+    if(ai)ai.textContent=fmt(tot*p/100)+'/mo';
+  });
+  const el=document.getElementById('pct-sum');
+  if(el){
+    const r=Math.round(sum*10)/10;el.textContent=r+'%';
+    const diff=Math.abs(sum-100);
+    el.style.color=diff<0.5?'#4DD4A0':diff<8?'#F0AA4A':'#F08080';
+  }
+}
+function row(label,input){return `<div class="erow"><label class="elabel">${label}</label>${input}</div>`;}
+
+function buildEdit(){
+  let h='<div class="esec"><div class="esec-title">Balances &amp; targets</div>';
+  S.forEach(g=>{
+    h+=`<div class="egroup"><div class="egroup-name">${ICONS[g.id]} ${g.label}</div>`;
+    if(g.mode==='spenddown'){
+      h+=row('Total budget',`<input type="number" id="budget-${g.id}" value="${g.budget}" min="0" step="100">`);
+      h+=row('Spent so far',`<input type="number" id="spent-${g.id}" value="${g.spent}" min="0" step="10">`);
+      h+=row('Months tracked',`<input type="number" id="mt-${g.id}" value="${g.mt||0}" min="0" step="1">`);
+    }else{
+      h+=row('Target',`<input type="number" id="tgt-${g.id}" value="${g.target}" min="0" step="100">`);
+      h+=row('Saved',`<input type="number" id="cur-${g.id}" value="${g.current}" min="0" step="50">`);
+    }
+    h+='</div>';
+  });
+  h+='</div>';
+  h+=`<div class="esec"><div class="esec-title">Monthly budget allocation</div>
+    <div class="erow" style="margin-bottom:.875rem">
+      <label class="elabel" style="font-weight:600">Total per month</label>
+      <input type="number" id="tm-input" value="${TM}" min="0" step="25" oninput="updCalcs()">
+    </div>
+    <div class="alloc-grid alloc-hdr">
+      <span>Goal</span><span class="ar">%</span><span></span><span></span><span class="ar">/month</span>
+    </div>
+    ${S.map(g=>`<div class="alloc-grid alloc-row">
+      <span class="alloc-name">${g.label}</span>
+      <input type="number" class="alloc-pct-in" id="pct-${g.id}" value="${g.pct}" min="0" max="100" step="1" oninput="updCalcs()">
+      <span class="alloc-sign">%</span><span class="alloc-sign">=</span>
+      <span class="alloc-amt" id="amt-${g.id}">${fmt(TM*g.pct/100)}/mo</span>
+    </div>`).join('')}
+    <hr class="alloc-sep">
+    <div class="alloc-total">
+      <span class="alloc-total-lbl">Allocated</span>
+      <span class="alloc-total-val" id="pct-sum" style="color:#4DD4A0">${S.reduce((a,g)=>a+g.pct,0)}%</span>
+    </div>
+  </div>`;
+  h+=`<div class="esec"><div class="esec-title">Status tags</div>
+    ${S.map(g=>`<div class="erow"><label class="elabel">${g.label}</label>
+      <select id="sta-${g.id}">${STATUSES.map(s=>`<option value="${s.v}"${g.status===s.v?' selected':''}>${s.l}</option>`).join('')}</select>
+    </div>`).join('')}
+  </div>`;
+  const ep=document.getElementById('edit-panel');
+  ep.innerHTML=h;ep.style.display='block';
+  document.getElementById('goals-display').style.display='none';
+  document.getElementById('copy-area').innerHTML='';
+  hideBanner();
+  document.getElementById('action-bar').innerHTML=`
+    <button class="btn" onclick="cancelEdit()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveEdit()">Save</button>`;
+  editOpen=true;
+}
+
+function toggleEdit(){if(editOpen)cancelEdit();else buildEdit();}
+
+function cancelEdit(){
+  const ep=document.getElementById('edit-panel');
+  ep.style.display='none';ep.innerHTML='';
+  document.getElementById('goals-display').style.display='block';
+  document.getElementById('action-bar').innerHTML=`
+    <button class="btn" onclick="toggleEdit()">Edit values</button>
+    <button class="btn btn-copy" onclick="copySnapshot()">📋 Copy snapshot</button>`;
+  editOpen=false;
+}
+
+function saveEdit(){
+  TM=parseFloat(document.getElementById('tm-input').value)||TM;
+  S.forEach(g=>{
+    g.pct=parseFloat(document.getElementById('pct-'+g.id).value)||0;
+    g.status=document.getElementById('sta-'+g.id).value;
+    if(g.mode==='spenddown'){
+      g.budget=parseFloat(document.getElementById('budget-'+g.id).value)||g.budget;
+      g.spent=parseFloat(document.getElementById('spent-'+g.id).value)||0;
+      g.mt=parseFloat(document.getElementById('mt-'+g.id).value)||0;
+    }else{
+      g.target=parseFloat(document.getElementById('tgt-'+g.id).value)||g.target;
+      g.current=parseFloat(document.getElementById('cur-'+g.id).value)||0;
+    }
+  });
+  cancelEdit();
+  renderGoals();
+  saveState();
+}
+
+document.getElementById('hdr-date').textContent=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+loadState();
+</script>
+</body>
+</html>
